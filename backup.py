@@ -237,7 +237,7 @@ if __name__ == "__main__":
 		ax1.set_title("Renewable Energy Trends by Country", fontsize=14)
 		ax1.set_xlabel("Year", fontsize=12)
 		ax1.set_ylabel("Renewable Energy (%)", fontsize=12)
-		ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # 图例放在右侧
+		ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 		ax1.grid(True)
 
 		latest_year = df_plot["Year"].max()
