@@ -1,3 +1,9 @@
+"""
+This file is the manual version control for the current code.
+——————————————————————————————————————————————————————————————————————————————————
+--The code in main.ipynb is the newest version, this file is only for backup--
+"""
+
 import math
 import numpy as np
 import pandas as pd
@@ -7,6 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import Column, Integer, String, Float
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from Big_O import time_complexity
 
 engine = create_engine('sqlite:///FC724_PA2.db')
 Base = sqlalchemy.orm.declarative_base()
@@ -29,6 +36,7 @@ class SQLTable(Base):
 	Geothermal = Column(Float)
 	Biomass = Column(Float)
 	Other_Renewables = Column(Float, name='Other Renewables')
+
 
 Base.metadata.create_all(engine)
 
@@ -57,6 +65,7 @@ with Transaction() as transaction:
 	transaction.query(SQLTable)
 
 
+@time_complexity
 def process_item(column: list[str | int | np.float64]) -> list[str | int | float] | None:
 	"""
 	params: column: list[str|np.float_]
@@ -96,6 +105,7 @@ def process_item(column: list[str | int | np.float64]) -> list[str | int | float
 	return None
 
 
+@time_complexity
 def process_data(df_csv: pd.DataFrame) -> list[list[str | int | float]]:
 	"""
 	params: df_csv: pd.DataFrame
@@ -158,12 +168,11 @@ def process_data(df_csv: pd.DataFrame) -> list[list[str | int | float]]:
 		assert left_ptr is not None and right_ptr is not None
 		assert left_ptr < right_ptr
 
-		k = (processed_data[right_ptr][4] + processed_data[left_ptr][4]) / (processed_data[right_ptr][1] - processed_data[left_ptr][1])
+		k = (processed_data[right_ptr][4] + processed_data[left_ptr][4]) / (
+					processed_data[right_ptr][1] - processed_data[left_ptr][1])
 		item[4] = int(k * (item[1] - processed_data[left_ptr][1]) + processed_data[left_ptr][4])
 		interpolated_data.append(item)
 	return interpolated_data
-
-
 
 
 if __name__ == "__main__":
@@ -172,6 +181,84 @@ if __name__ == "__main__":
 
 	with Transaction() as transaction:
 		for row in processed_data:
-			transaction.add(SQLTable(Country=row[0], Year=row[1], Total_Energy_Consumption=row[2], Renewable_Energy=row[3],
-									 Government_Investment=row[4], Emissions_Reduction=row[5], Solar=row[6], Wind=row[7],
-									 Hydro=row[8], Geothermal=row[9], Biomass=row[10], Other_Renewables=row[11]))
+			transaction.add(
+				SQLTable(Country=row[0], Year=row[1], Total_Energy_Consumption=row[2], Renewable_Energy=row[3],
+						 Government_Investment=row[4], Emissions_Reduction=row[5], Solar=row[6], Wind=row[7],
+						 Hydro=row[8], Geothermal=row[9], Biomass=row[10], Other_Renewables=row[11]))
+
+	with Transaction() as session:
+		query_data = session.query(
+			SQLTable.Country,
+			SQLTable.Year,
+			SQLTable.Renewable_Energy,
+			SQLTable.Solar,
+			SQLTable.Wind,
+			SQLTable.Hydro,
+			SQLTable.Geothermal,
+			SQLTable.Biomass,
+			SQLTable.Other_Renewables
+		).order_by(SQLTable.Country, SQLTable.Year).all()
+
+	data = [
+		{
+			"Country": item.Country,
+			"Year": item.Year,
+			"Renewable_Energy": item.Renewable_Energy,
+			"Solar": item.Solar,
+			"Wind": item.Wind,
+			"Hydro": item.Hydro,
+			"Geothermal": item.Geothermal,
+			"Biomass": item.Biomass,
+			"Other_Renewables": item.Other_Renewables
+		} for item in query_data
+	]
+	df_plot = pd.DataFrame(data)
+
+	if df_plot.empty:
+		print("No data found in the database.")
+	else:
+		fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+
+		countries = df_plot["Country"].unique()
+		colors = plt.cm.tab20.colors
+
+		for idx, country in enumerate(countries):
+			country_data = df_plot[df_plot["Country"] == country]
+			ax1.plot(
+				country_data["Year"],
+				country_data["Renewable_Energy"],
+				marker="o",
+				linestyle="-",
+				color=colors[idx % len(colors)],
+				label=country,
+				alpha=0.7
+			)
+
+		ax1.set_title("Renewable Energy Trends by Country", fontsize=14)
+		ax1.set_xlabel("Year", fontsize=12)
+		ax1.set_ylabel("Renewable Energy (%)", fontsize=12)
+		ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left')  # 图例放在右侧
+		ax1.grid(True)
+
+		latest_year = df_plot["Year"].max()
+		latest_data = df_plot[df_plot["Year"] == latest_year]
+
+		components = ["Solar", "Wind", "Hydro", "Geothermal", "Biomass", "Other_Renewables"]
+		component_data = latest_data[["Country"] + components].set_index("Country")
+
+		component_data.plot.bar(
+			ax=ax2,
+			stacked=True,
+			colormap="Paired",
+			edgecolor="black",
+			width=0.8
+		)
+
+		ax2.set_title(f"Renewable Energy Composition by Country ({latest_year})", fontsize=14)
+		ax2.set_xlabel("Country", fontsize=12)
+		ax2.set_ylabel("Percentage (%)", fontsize=12)
+		ax2.legend(title="Components", bbox_to_anchor=(1.05, 1), loc='upper left')
+		plt.xticks(rotation=45, ha="right")
+
+		plt.tight_layout()
+		plt.show()
